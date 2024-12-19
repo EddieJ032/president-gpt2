@@ -2,7 +2,7 @@
 
 A GPT trained to complete phrases like a given president.
 
-![image](https://github.com/user-attachments/assets/d84a2266-3d86-4be9-abd3-8fcd11771c12)
+![image](https://github.com/user-attachments/assets/d8afe64c-8dd9-422a-a0b8-590525d32880)
 
 https://president-gpt2.streamlit.app/
 
