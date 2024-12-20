@@ -141,7 +141,7 @@ class MyTrainer:
             ckp = self.model.module.state_dict()
         else:
             ckp = self.model.state_dict()
-        PATH = "checkpoint.pt"
+        PATH = "./model/checkpoint.pt"
         torch.save(ckp, PATH)
         print(f"Epoch {epoch} | Training checkpoint saved at {PATH}")
 
