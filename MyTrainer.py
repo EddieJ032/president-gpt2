@@ -11,7 +11,9 @@ from torch.utils.data.distributed import DistributedSampler
 from pres_gpt2 import PresGPT2
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
-GRAD_ACCUM = 4
+import sys
+
+GRAD_ACCUM = 32
 
 class MyTrainer:
     def __init__(
@@ -24,7 +26,8 @@ class MyTrainer:
         fault_tolerant: bool,
         gpu_id: int,
         save_every: int,
-        snapshot_path: str
+        snapshot_path: str,
+        logfile: str
     ) -> None:
         self.gpu_id = gpu_id
 
@@ -48,20 +51,27 @@ class MyTrainer:
             self.model = DDP(self.model, device_ids=[self.gpu_id])
             
         self.save_every = save_every
-    
+        
+        self.logfile = logfile
+
+    def _log(self, statement):
+        if self.logfile:
+            with open(self.logfile, "a") as log_file:
+                print(statement, file=log_file)
+
     # only gets called for fault tolerant runs
     def _load_snapshot(self, snapshot_path):
         snapshot = torch.load(snapshot_path)
         self.model.load_state_dict(snapshot['MODEL_STATE'])
         self.epochs_run = snapshot["EPOCHS_RUN"]
-        print(f"Resuming training from snapshot at Epoch {self.epochs_run}")
+        self._log(f"Resuming training from snapshot at Epoch {self.epochs_run}")
 
     def _save_snapshot(self, epoch):
         snapshot = {}
         snapshot["MODEL_STATE"] = self.model.module.state_dict()
         snapshot["EPOCHS_RUN"] = epoch
         torch.save(snapshot, "snapshot.pt")
-        print(f"Epoch {epoch} | Training snapshot saved at snapshot.pt")
+        self._log(f"Epoch {epoch} | Training snapshot saved at snapshot.pt")
 
     def _run_batch(self, source, targets, counter):
         self.scheduler.optimizer.zero_grad()
@@ -90,7 +100,7 @@ class MyTrainer:
             self.train_data.sampler.set_epoch(epoch)
         
         b_sz = len(next(iter(self.train_data))[0])
-        print(f"[GPU{self.gpu_id}] Epoch {epoch} | Batchsize: {b_sz} | Steps: {len(self.train_data)}")
+        self._log(f"[GPU{self.gpu_id}] Epoch {epoch} | Batchsize: {b_sz} | Steps: {len(self.train_data)}")
         
         train_loss = 0
         
@@ -143,7 +153,7 @@ class MyTrainer:
             ckp = self.model.state_dict()
         PATH = "./model/checkpoint.pt"
         torch.save(ckp, PATH)
-        print(f"Epoch {epoch} | Training checkpoint saved at {PATH}")
+        self._log(f"Epoch {epoch} | Training checkpoint saved at {PATH}")
 
 
     def train(self, max_epochs: int):
@@ -152,8 +162,8 @@ class MyTrainer:
             val_loss = self._calculate_validation_loss(epoch)
             
             if (not self.distributed or self.gpu_id == 0): # only have gpu_id of 0 print stuff
-                print('Train Loss: ', epoch_loss)
-                print('Validation Loss: ', val_loss)
+                self._log(f'Train Loss: {epoch_loss}')
+                self._log(f'Validation Loss: {val_loss}')
                 
                 if self.fault_tolerant:
                     self._save_snapshot(epoch)

@@ -26,8 +26,11 @@ config: GPTConfig = GPTConfig(
 
 model: PresGPT2 = PresGPT2(config)
 
-checkpoint = torch.load('./model/checkpoint.pt', map_location=torch.device("cuda"))  # Adjust device if needed
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+checkpoint = torch.load('./model/checkpoint.pt', map_location=device)  # Adjust device if needed
 model.load_state_dict(checkpoint)
+model.to(device)
 
 validation_dataloader = DataLoader(validation_dataset, batch_size=16, shuffle=True)
 
@@ -37,8 +40,9 @@ val_loss = 0
 
 with torch.no_grad():
     for X, Y in validation_dataloader:
+        X, Y = X.to(device), Y.to(device)
         _, loss = model(X, Y)
         
         val_loss += loss.item()
 
-print(val_loss.item() / len(validation))
+print(val_loss / len(validation_dataloader))
