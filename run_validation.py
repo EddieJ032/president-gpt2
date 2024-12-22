@@ -4,24 +4,20 @@ from Dataset import PresidentDataset
 
 import pickle
 import tiktoken
-import tiktoken
 from torch.utils.data import DataLoader
 
+from const import block_size
 
 with open("./tokenizer/pres_tokenizer.pkl", "rb") as f:
     pres_enc: tiktoken.Encoding = pickle.load(f)
     
-with open("./data/train.pkl", "rb") as f:
-    train = pickle.load(f)
-    
 with open("./data/validation.pkl", "rb") as f:
     validation = pickle.load(f)
 
-train_dataset = PresidentDataset(train)
 validation_dataset = PresidentDataset(validation)
 
 config: GPTConfig = GPTConfig(
-    1024,
+    block_size,
     len(pres_enc._mergeable_ranks) + len(pres_enc._special_tokens),
     12,
     12,
@@ -30,15 +26,19 @@ config: GPTConfig = GPTConfig(
 
 model: PresGPT2 = PresGPT2(config)
 
-optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
+checkpoint = torch.load('./model/checkpoint.pt', map_location=torch.device("cuda"))  # Adjust device if needed
+model.load_state_dict(checkpoint)
 
-train_dataloader = DataLoader(train_dataset, batch_size=2, shuffle=True)
+validation_dataloader = DataLoader(validation_dataset, batch_size=16, shuffle=True)
 
-train_input, train_output = next(iter(train_dataloader))
+model.eval()
+    
+val_loss = 0
 
-for i in range(5):
-    optimizer.zero_grad()
-    logits, loss = model(train_input, train_output)
-    loss.backward()
-    optimizer.step()
-    print(f'{i} loss: {loss.item()}')
+with torch.no_grad():
+    for X, Y in validation_dataloader:
+        _, loss = model(X, Y)
+        
+        val_loss += loss.item()
+
+print(val_loss.item() / len(validation))
