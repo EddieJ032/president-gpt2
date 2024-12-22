@@ -19,8 +19,8 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from const import block_size
 
-MAX_EPOCHS = 100
-LOAD_PREVIOUS = True
+MAX_EPOCHS = 10000
+LOAD_PREVIOUS = False
 
 torch.set_float32_matmul_precision('high')
 
@@ -86,14 +86,14 @@ def ddp_setup(rank, world_size):
     init_process_group(backend="nccl", rank=rank, world_size=world_size)
 
 
-def multi_gpu(rank, world_size, total_epochs, save_every):
+def multi_gpu(rank, world_size, total_epochs, save_every, log_file):
     ddp_setup(rank, world_size)
     
     train_dataset, validation_dataset, model, scheduler, _ = load_train_objs()
     train_data = prepare_dataloader(train_dataset, batch_size=16, distributed=True)
     validation_data = prepare_dataloader(validation_dataset, batch_size=16, distributed=True)
     
-    trainer = MyTrainer(model, train_data, validation_data, scheduler, True, False, rank, save_every, "")
+    trainer = MyTrainer(model, train_data, validation_data, scheduler, True, False, rank, save_every, "", log_file)
     trainer.train(total_epochs)
     
     destroy_process_group()
@@ -102,7 +102,12 @@ def multi_gpu(rank, world_size, total_epochs, save_every):
 # start training job
 if __name__ == '__main__':
     total_epochs = MAX_EPOCHS
-    save_every = 2
+    save_every = 10
     world_size = torch.cuda.device_count()
     print('world size is : ', world_size)
-    mp.spawn(multi_gpu, args=(world_size, total_epochs, save_every,), nprocs=world_size) 
+    log_file = 'output.log'
+
+    with open(log_file, "w") as f:
+        pass  # This will clear the file without writing anything
+
+    mp.spawn(multi_gpu, args=(world_size, total_epochs, save_every, log_file,), nprocs=world_size) 
