@@ -21,7 +21,8 @@ config: GPTConfig = GPTConfig(
     len(pres_enc._mergeable_ranks) + len(pres_enc._special_tokens),
     12,
     12,
-    768
+    768,
+    0.0
 )
 
 model: PresGPT2 = PresGPT2(config)

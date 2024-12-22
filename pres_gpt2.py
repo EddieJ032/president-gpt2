@@ -4,12 +4,13 @@ from torch.nn import functional as F
 
 # parameters for GPT-2 
 class GPTConfig:
-    def __init__(self, block_size, vocab_size, n_layers, n_heads, n_embd):
+    def __init__(self, block_size, vocab_size, n_layers, n_heads, n_embd, dropout):
         self.block_size = block_size
         self.vocab_size = vocab_size
         self.n_layers = n_layers
         self.n_heads = n_heads
         self.n_embd = n_embd
+        self.dropout = dropout
     
 """ one head of self-attention """
 class Head(nn.Module):
@@ -21,6 +22,7 @@ class Head(nn.Module):
         self.key = nn.Linear(config.n_embd, head_size, bias=False)
         self.query = nn.Linear(config.n_embd, head_size, bias=False)
         self.value = nn.Linear(config.n_embd, head_size, bias=False)
+        self.attn_dropout = nn.Dropout(config.dropout)
         self.register_buffer('tril', torch.tril(torch.ones(config.block_size, config.block_size)))  
         
     def forward(self, x):
@@ -37,10 +39,12 @@ class Head(nn.Module):
 
         # softmax each column
         wei = F.softmax(wei, dim=-1)
+        
+        wei = self.attn_dropout(wei)
 
         v = self.value(x)
 
-        return wei @ v
+        return wei@v
     
 class MultiHeadAttention(nn.Module):
     def __init__(self, config: GPTConfig):
@@ -48,10 +52,11 @@ class MultiHeadAttention(nn.Module):
         self.heads = nn.ModuleList([Head(config) for _ in range(config.n_heads)])
         self.proj = nn.Linear(config.n_embd,config. n_embd)
         self.proj.STD_SCALE_INIT = 1
+        self.resid_dropout = nn.Dropout(config.dropout)
         
     def forward(self, x):
         out = torch.cat([h(x) for h in self.heads], dim=-1)
-        return self.proj(out)
+        return self.resid_dropout(self.proj(out))
         
 class MLP(nn.Module):
     def __init__(self, config):
@@ -60,11 +65,12 @@ class MLP(nn.Module):
         self.gelu = nn.GELU(approximate='tanh')
         self.c_proj = nn.Linear(4*config.n_embd, config.n_embd)
         self.c_proj.STD_SCALE_INIT = 1
+        self.dropout = nn.Dropout(config.dropout)
 
     def forward(self, x):
         x = self.c_fc(x)
         x = self.gelu(x)
-        return self.c_proj(x)
+        return self.dropout(self.c_proj(x))
 
 class Block(nn.Module):
     def __init__(self, config: GPTConfig):
@@ -92,6 +98,7 @@ class PresGPT2(nn.Module):
             dict(
                 wte = nn.Embedding(config.vocab_size, config.n_embd),
                 wpe = nn.Embedding(config.block_size, config.n_embd),
+                drop = nn.Dropout(config.dropout),
                 h = nn.ModuleList([Block(config) for _ in range(config.n_layers)]),
                 ln_f = nn.LayerNorm(config.n_embd)
             )
@@ -125,7 +132,7 @@ class PresGPT2(nn.Module):
         
         pos_emb = self.transformer.wpe(pos)
         
-        x = pos_emb + tok_emb
+        x = self.transformer.drop(tok_emb + pos_emb)
         
         for b in self.transformer.h:
             x = b(x)

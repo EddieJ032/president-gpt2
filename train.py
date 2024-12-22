@@ -42,7 +42,8 @@ def load_train_objs():
         len(pres_enc._mergeable_ranks) + len(pres_enc._special_tokens),
         12,
         12,
-        768
+        768,
+        0.2
     )
 
     # Initialize model

@@ -19,7 +19,8 @@ def load_model():
         len(pres_enc._mergeable_ranks) + len(pres_enc._special_tokens),
         12,
         12,
-        768
+        768,
+        0.0
     )
 
     checkpoint = torch.load('./model/checkpoint.pt', map_location=torch.device("cpu"))  # Adjust device if needed
